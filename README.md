@@ -12,9 +12,12 @@ Run the following commands to build the workspace, source the setup file, and ex
 ```bash
 # Build
 colcon build
-
+```
+```bash
 # Source
 source install/setup.bash
-
+```
+```bash
 # Run
 ros2 run mrs_consensus rendezvous_node
+```
