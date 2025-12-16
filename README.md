@@ -4,6 +4,9 @@
 
 Follow the instructions in the link below to set up the Docker environment:
 https://github.com/misiek02/mrs_crazyflies
+```bash
+./ros2_ws/src/mrs_crazyflies/startup/start.sh
+```
 
 ## Build and Usage
 
