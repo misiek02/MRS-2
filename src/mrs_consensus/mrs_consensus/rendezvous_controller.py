@@ -16,6 +16,7 @@
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped, Twist
+from nav_msgs.msg import Path  # ADDED: RViz trajectory visualization message
 import numpy as np
 import math
 
@@ -56,15 +57,35 @@ class ConsensusRendezvous(Node):
         # - Robust to node failures (graceful degradation)
         # ============================================================================
         self.A = np.array([
-            [0, 1, 0, 0], 
-            [0, 0, 1, 0], 
-            [0, 0, 0, 1], 
-            [1, 0, 0, 0]  
+            [0, 1, 1, 1], 
+            [1, 0, 1, 1], 
+            [1, 1, 0, 1], 
+            [1, 1, 1, 0]  
         ])
 
         # Initialize lists to store ROS publishers and subscribers for all robots
         self.pubs = []
         self.subs = []
+
+        # ============================================================================
+        # ADDED: RViz trajectory visualization using nav_msgs/Path
+        # ============================================================================
+        # We create one Path publisher per robot:
+        #   /cf_<robot_id>/path
+        #
+        # Each time we receive a /cf_<robot_id>/pose message, we append that pose to
+        # the Path and publish it. RViz2 can draw the Path as a line showing the
+        # robot trajectory over time.
+        #
+        # RViz setup:
+        #   - Set "Fixed Frame" to "world"
+        #   - Add -> Path
+        #   - Choose topic /cf_1/path, /cf_2/path, ...
+        # ============================================================================
+        self.path_pubs = []
+        self.paths = [Path() for _ in range(self.num_robots)]
+        self.fixed_frame = "world"         # Must match the pose frame used by the simulator
+        self.max_path_points = 2000        # Limit to avoid RViz slowdown/memory growth
 
         # Create ROS2 communication channels for each robot in the swarm
         for i in range(self.num_robots):
@@ -99,6 +120,16 @@ class ConsensusRendezvous(Node):
                 10  # Queue size for buffering
             ))
 
+            # ================================================================
+            # ADDED: PUBLISHER: Publish robot trajectory for RViz
+            # ================================================================
+            self.path_pubs.append(self.create_publisher(
+                Path,
+                f'/cf_{robot_id}/path',
+                10
+            ))
+            self.paths[i].header.frame_id = self.fixed_frame
+        
         # ====================================================================
         # CONTROL LOOP TIMER
         # ====================================================================
@@ -129,6 +160,25 @@ class ConsensusRendezvous(Node):
         # Mark this robot as having sent at least one position update
         # This flag prevents control loop from starting until all robots report
         self.position_received[robot_idx] = True
+
+        # ============================================================================
+        # ADDED: Update and publish the Path for RViz (trajectory visualization)
+        # ============================================================================
+        # We append the current pose to the Path. RViz will draw the trajectory
+        # when you display the /cf_<id>/path topic as a Path display.
+        p = PoseStamped()
+        p.header.stamp = msg.header.stamp
+        p.header.frame_id = self.fixed_frame
+        p.pose = msg.pose
+
+        self.paths[robot_idx].header.stamp = msg.header.stamp
+        self.paths[robot_idx].poses.append(p)
+
+        # Keep only the last max_path_points poses to avoid unlimited growth
+        if len(self.paths[robot_idx].poses) > self.max_path_points:
+            self.paths[robot_idx].poses.pop(0)
+
+        self.path_pubs[robot_idx].publish(self.paths[robot_idx])
 
     def control_loop(self):
         """Main control loop: computes and sends velocity commands to all robots.
@@ -331,3 +381,4 @@ def main(args=None):
 # not when it's imported as a module in another script
 if __name__ == '__main__':
     main()
+
