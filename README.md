@@ -21,9 +21,6 @@ docker stop mrs_crazyflies_cont
 docker rm mrs_crazyflies_cont
 ```
 
-```bash
-./ros2_ws/src/mrs_crazyflies/startup/start.sh
-```
 
 ## Build and Usage
 
@@ -37,6 +34,11 @@ colcon build
 # Source
 source install/setup.bash
 ```
+
+```bash
+./ros2_ws/src/mrs_crazyflies/startup/start.sh
+```
+In 3rd terminal (bottom):
 ```bash
 # Run
 ros2 run mrs_consensus rendezvous_node
