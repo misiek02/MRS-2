@@ -26,15 +26,19 @@ docker rm mrs_crazyflies_cont
 
 Run the following commands to build the workspace, source the setup file, and execute the node:
 
+Build all packages:
 ```bash
-# Build
 colcon build
 ```
+Build consensus package:
 ```bash
-# Source
+colcon build --packages-select mrs_consensus
+```
+Source:
+```bash
 source install/setup.bash
 ```
-
+Start sim env:
 ```bash
 cd ~/ros2_ws/src/mrs_crazyflies/startup/
 ./start.sh
