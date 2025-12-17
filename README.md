@@ -41,5 +41,5 @@ source install/setup.bash
 In 3rd terminal (bottom):
 ```bash
 # Run
-ros2 run mrs_consensus rendezvous_controller
+ros2 run mrs_consensus rendezvous_node
 ```
