@@ -10,12 +10,12 @@ class FormationController(Node):
         super().__init__('formation_controller')
         
         self.num_robots = 4
-        self.k_p = 1.0       # Formation gain
-        self.k_sep = 1.5     # Separation gain
-        self.safe_dist = 0.5 # Safety distance
+        self.k_p = 0.6       # Formation gain
+        self.k_sep = 2.0     # Separation gain
+        self.safe_dist = 0.7 # Safety distance
         
         # Target position for the formation center (Virtual Leader)
-        self.target_pos = np.array([2.0, 2.0]) 
+        self.target_pos = np.array([1.5, 1.5]) 
         
         # Triangle Formation Offsets (xi)
         # Robot 1: Top, Robot 2: Bottom Left, Robot 3: Bottom Right, Robot 4: Center
@@ -80,8 +80,9 @@ class FormationController(Node):
             
             # 2. Virtual Leader Logic: Move formation center to target 
             # We treat the formation as a "stubborn robot" following the target_pos
-            u_x += (self.target_pos[0] - self.positions[i][0]) + self.offsets[i][0]
-            u_y += (self.target_pos[1] - self.positions[i][1]) + self.offsets[i][1]
+            if i == 0:
+                u_x += (self.target_pos[0] - self.positions[i][0]) + self.offsets[i][0]
+                u_y += (self.target_pos[1] - self.positions[i][1]) + self.offsets[i][1]
 
             # 3. Collision Avoidance 
             col_x, col_y = 0.0, 0.0
