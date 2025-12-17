@@ -36,7 +36,8 @@ source install/setup.bash
 ```
 
 ```bash
-./ros2_ws/src/mrs_crazyflies/startup/start.sh
+cd ~/ros2_ws/src/mrs_crazyflies/startup/
+./start.sh
 ```
 In 3rd terminal (bottom):
 ```bash
