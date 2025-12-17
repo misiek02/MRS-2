@@ -43,8 +43,7 @@ Start sim env:
 cd ~/ros2_ws/src/mrs_crazyflies/startup/
 ./start.sh
 ```
-In 3rd terminal (bottom):
+In 3rd terminal (bottom) - run rendezvous node:
 ```bash
-# Run
 ros2 run mrs_consensus rendezvous_node
 ```
