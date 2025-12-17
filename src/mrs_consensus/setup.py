@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'rendezvous_node = mrs_consensus.rendezvous_controller:main',
+            'formation_node = mrs_consensus.formation_controller:main',
         ],
     },
 )
