@@ -29,8 +29,8 @@ class ConsensusRendezvous(Node):
         self.num_robots = 4
         
         # Control parameters for the consensus algorithm
-        self.k_p = 1.0           # Consensus gain (attraction): controls convergence speed
-        self.k_sep = 1.5         # Separation gain (repulsion): prevents collisions
+        self.k_p = 0.8           # Consensus gain (attraction): controls convergence speed
+        self.k_sep = 1.0         # Separation gain (repulsion): prevents collisions
         self.safe_dist = 0.5     # Minimum safe distance between robots (meters)
         
         # Position storage array: stores (x, y) coordinates for each robot
@@ -62,6 +62,20 @@ class ConsensusRendezvous(Node):
             [1, 1, 0, 1], 
             [1, 1, 1, 0]  
         ])
+        # TRYING OUT UNBALANCED DIRECTED TOPOLOGY
+        # self.A = np.array([
+        #     [0, 0, 0, 0], 
+        #     [1, 0, 1, 0], 
+        #     [0, 0, 0, 0], 
+        #     [1, 0, 1, 0]  
+        # ])
+        # CONNECTED, DIRECTED, RING TOPOLOGY 
+        # self.A = np.array([ 
+        #     [0, 0, 0, 1], 
+        #     [1, 0, 0, 0], 
+        #     [0, 1, 0, 0], 
+        #     [0, 0, 1, 0]  
+        # ])
 
         # Initialize lists to store ROS publishers and subscribers for all robots
         self.pubs = []
