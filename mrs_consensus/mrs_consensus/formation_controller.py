@@ -10,8 +10,8 @@ class FormationController(Node):
         super().__init__('formation_controller')
         
         self.num_robots = 4
-        self.k_p = 0.6       # Formation gain
-        self.k_sep = 2.0     # Separation gain
+        self.k_p = 0.25       # Formation gain
+        self.k_sep = 1.0     # Separation gain
         self.safe_dist = 0.7 # Safety distance
         
         # Target position for the formation center (Virtual Leader)
@@ -19,12 +19,18 @@ class FormationController(Node):
         
         # Triangle Formation Offsets (xi)
         # Robot 1: Top, Robot 2: Bottom Left, Robot 3: Bottom Right, Robot 4: Center
+        # self.offsets = np.array([
+        #     [0.0, 0.5],   # R1
+        #     [-0.5, -0.5],  # R2
+        #     [0.5, -0.5],   # R3
+        #     [0.0, 0.0]    # R4
+        # ])
         self.offsets = np.array([
-            [0.0, 0.5],   # R1
-            [-0.5, -0.5],  # R2
-            [0.5, -0.5],   # R3
-            [0.0, 0.0]    # R4
-        ])
+            [0.0,  0.8],   
+            [-0.8, -0.8],  
+            [0.8, -0.8],   
+            [0.0, -0.8],  
+        ], dtype=np.float64)
 
         self.positions = np.zeros((self.num_robots, 2))
         self.position_received = [False] * self.num_robots
@@ -81,8 +87,11 @@ class FormationController(Node):
             # 2. Virtual Leader Logic: Move formation center to target 
             # We treat the formation as a "stubborn robot" following the target_pos
             if i == 0:
-                u_x += (self.target_pos[0] - self.positions[i][0]) + self.offsets[i][0]
-                u_y += (self.target_pos[1] - self.positions[i][1]) + self.offsets[i][1]
+                desired_i = self.target_pos + self.offsets[i]
+                u_x += desired_i[0] - self.positions[i][0]
+                u_y += desired_i[1] - self.positions[i][1]
+                # u_x += (self.target_pos[0] - self.positions[i][0]) + self.offsets[i][0]
+                # u_y += (self.target_pos[1] - self.positions[i][1]) + self.offsets[i][1]
 
             # 3. Collision Avoidance 
             col_x, col_y = 0.0, 0.0
