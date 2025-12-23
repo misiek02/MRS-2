@@ -110,7 +110,7 @@ class FormationController(Node):
             final_vy = (u_y * self.k_p) + col_y
             
             v_norm = math.sqrt(final_vx**2 + final_vy**2)
-            if v_norm > 0.6: 
+            if v_norm > 0.6: # 0.6 used here to cap the velocity in case of hardware limitations. (SHOULD NOT BE HARD CODED!!!)
                 final_vx = (final_vx / v_norm) * 0.6
                 final_vy = (final_vy / v_norm) * 0.6
 
