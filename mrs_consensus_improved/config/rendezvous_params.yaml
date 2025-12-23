@@ -1,0 +1,42 @@
+rendezvous_controller:
+  ros__parameters:
+    k_p: 1.5    # consensus gain - (determines the speed of reaching consensus)
+    k_d: 0.8    # damping factor - (to slow down velocity as robots reach consensus)
+    k_separation: 0.5   # repulsive force
+    safe_dist: 0.4    # minimum safe distance between robots
+
+    topology: 'A'   # A,B,C,D,E,F [The rendezvous topologies are provided below]
+    
+    # ============================== 
+    #
+    # A:          
+    # 1 -- 2
+    # |    |
+    # 4 -- 3
+    #
+    # B:
+    # 1   2
+    # ↓   ↑
+    # 4 → 3
+    # 
+    # C:
+    # 1 -- 2
+    # 
+    # 4 -- 3
+    # 
+    # D:
+    # 1 → 2
+    # ↓   ↑
+    # 4 ← 3
+    # 
+    # E:
+    # 1 → 2
+    # ↑   ↓
+    # 4 ← 3
+    # 
+    # F:
+    # 1 ← 2
+    #   ↘ ↑
+    # 4 ← 3
+    # 
+    # ==============================

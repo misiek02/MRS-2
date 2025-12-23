@@ -1,0 +1,3 @@
+formation_controller:
+  ros__parameters:
+    ducky: 1
