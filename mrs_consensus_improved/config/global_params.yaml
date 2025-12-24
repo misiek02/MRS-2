@@ -1,5 +1,5 @@
 /**:
   ros__parameters:
-    num_robots: 4
+    num_robots: 8
     publish_rate: 20.0   # in Hz, for contro loop timer
     max_acc: 0.8  # in m/s2
