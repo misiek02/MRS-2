@@ -14,6 +14,11 @@ from crazyflie_interfaces.msg import LogDataGeneric     # Custom message type fo
 from nav_msgs.msg import Path  
 import numpy as np
 import math
+from typing import Dict, List
+import pathlib
+import os
+from datetime import datetime
+import matplotlib.pyplot as plt
 
 # importing helper functions
 from mrs_consensus_improved.utils.helper import *
@@ -48,6 +53,8 @@ class ConsensusRendezvous(Node):
         self.velocities = np.zeros((self.num_robots, 2))
         self.position_received = [False] * self.num_robots  # Track which robots have sent at least one position update
         self.velocity_received = [False] * self.num_robots  # Track which robots have sent at least one velocity update
+        self.robot_poses: Dict[int, List[np.ndarray]] = {}  # Dictionary to append the robot poses, to be plotted at the end of the simulation run
+        self.results_dir = pathlib.Path(__file__).parent / "results"
 
         # PUBLISHERS & SUBSCRIBERS
         self.vel_pubs = []
@@ -86,6 +93,11 @@ class ConsensusRendezvous(Node):
 
         self.positions[rid] = [msg.pose.position.x, msg.pose.position.y]    # NOTE: We're controlling just x and y positions, because height is controlled and kept (to hover) at a set value (1.0m in crazyflie config)
         self.position_received[rid] = True  # Marking this robot as having sent at least one position update. This flag prevents the control loop from starting until all robots report position_received==True
+
+        # Appending robot pose for plotting at the end of simulation run
+        if (rid + 1) not in self.robot_poses:
+            self.robot_poses[(rid+1)] = []
+        self.robot_poses[(rid+1)].append(np.array([msg.pose.position.x, msg.pose.position.y]).reshape(1,2))
 
         # Add pose to path list, and publish Rviz (so the robot path can be visualized)
         self.publish_path(msg, rid)
@@ -173,6 +185,55 @@ class ConsensusRendezvous(Node):
 
         self.path_pubs[rid].publish(self.paths[rid])
 
+    def plot_robot_trajectories(self):
+        """
+            Plot trajectories for all robots from historical position data.
+        """
+        filename=None
+        # ---- Convert lists of (1,2) arrays into (N,2) arrays ----
+        trajectories = {}
+        lengths = []
+
+        for robot_id, poses in self.robot_poses.items():
+            if len(poses) == 0:
+                continue
+
+            traj = np.vstack([p.reshape(2,) for p in poses])
+            trajectories[robot_id] = traj
+            lengths.append(traj.shape[0])
+
+        if not trajectories:
+            raise ValueError("No valid trajectories to plot.")
+
+        # ---- Trim all trajectories to shortest length ----
+        min_len = min(lengths)
+
+        plt.figure()
+        for robot_id, traj in trajectories.items():
+            traj = traj[:min_len]
+            plt.plot(traj[:, 0], traj[:, 1], label=f"Robot {robot_id}", lw=1.5)
+
+        plt.xlabel("X position")
+        plt.ylabel("Y position")
+        plt.title(f"Robot trajectories (rendezvous problem {self.topology})")
+        plt.legend()
+        plt.axis("equal")
+        plt.grid(True)
+        # plt.show()
+
+        # Generate filename
+        if filename is None:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f'trajectories_{timestamp}.png'
+
+        # Save figure
+        filepath = os.path.join(self.results_dir, filename)
+        plt.savefig(filepath, dpi=150, bbox_inches='tight')
+        plt.close()
+
+        print(f"Trajectories plotted and saved to: {filepath}")
+        print(f"Trimmed all trajectories to {min_len} steps")
+
 def main(args=None):
     rclpy.init(args=args)
 
@@ -181,9 +242,10 @@ def main(args=None):
     try:
         rclpy.spin(consensus_rendezvous)
     except KeyboardInterrupt:
-        pass
-    consensus_rendezvous.destroy_node()
-    rclpy.shutdown()
+        consensus_rendezvous.plot_robot_trajectories()  # plot and save robot trajectories
+    finally:
+        consensus_rendezvous.destroy_node()
+        rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
