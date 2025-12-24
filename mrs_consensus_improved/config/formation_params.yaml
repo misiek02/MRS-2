@@ -1,3 +1,19 @@
 formation_controller:
   ros__parameters:
-    ducky: 1
+    k_p: 1.5    # consensus gain - (determines the speed of reaching consensus)
+    k_d: 0.8    # damping factor - (to slow down velocity as robots reach consensus)
+    k_separation: 0.7   # repulsive force
+    safe_dist: 0.5    # minimum safe distance between robots
+    spacing: 0.7  # desired spacing between robots in the chosen formation
+    target_pos_x: 1.5   # position for formation center to move to
+    target_pos_y: 1.5   # position for formation center to move to
+    vleader_x: 0.0    # virtual leader initial position (should be center of the formation)
+    vleader_y: 0.0    # virtual leader initial position (should be center of the formation)
+
+    desired_shape: 'Lh'  # T - Triangle; S - Square; Lh - Line(horizontal); Lv - Line(vertical); 
+    # NOTE: (WIP) For Square formation, the total number of robots MUST be divisible by 4! 
+    # NOTE: For Triangle formation, only 3, 4 and 6 number of robots are valid
+    # NOTE: Lh is arranged on y-axis
+    # NOTE: Lv is arranged on x-axis
+
+    
