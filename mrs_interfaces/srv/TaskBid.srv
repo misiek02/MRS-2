@@ -1,0 +1,10 @@
+# Request
+int32 bidder_id
+int32 task_id
+int32 es    # earliest start time for task
+
+---
+# Response 
+int32[] neighbours  # for MR tasks
+bool asssigned  # true if bidder is asssigned this task
+ 

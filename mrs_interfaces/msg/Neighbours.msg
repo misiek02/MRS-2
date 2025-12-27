@@ -1,0 +1,1 @@
+int32[] neighbours  # list of neighbours for MR tasks
