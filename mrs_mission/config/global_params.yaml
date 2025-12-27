@@ -1,0 +1,11 @@
+/**:
+  ros__parameters:
+    num_robots: 4   # working primarily with 4 robots
+    publish_rate: 20.0   # in Hz, for contro loop timer
+    max_acc: 0.8  # in m/s2
+
+    # Acceleration control parameters for all robots
+    k_p: 1.5    # consensus gain - (determines the speed of reaching consensus)
+    k_d: 0.8    # damping factor - (to slow down velocity as robots reach consensus)
+    k_separation: 0.7   # repulsive force
+    safe_dist: 0.3    # minimum safe distance between robots

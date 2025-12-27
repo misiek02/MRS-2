@@ -1,0 +1,3 @@
+# params for auctioneer node, (which also doubles as the bidder node for robot 1, 'bidder_1')
+auctioneer_node:  
+  ros__parameters:
