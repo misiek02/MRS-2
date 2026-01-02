@@ -28,11 +28,12 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'auctioneer_node = mrs_mission.auctioneer_node:main'
-            'formation_action = mrs_mission.formation_action:main'
-            'bidder_2 = mrs_mission.bidder_2:main'
-            'bidder_3 = mrs_mission.bidder_3:main'
-            'bidder_4 = mrs_mission.bidder_4:main'
+            'auctioneer_node = mrs_mission.auctioneer_node:main',
+            'formation_action = mrs_mission.formation_action:main',
+            'bidder_1 = mrs_mission.bidder_1:main',
+            'bidder_2 = mrs_mission.bidder_2:main',
+            'bidder_3 = mrs_mission.bidder_3:main',
+            'bidder_4 = mrs_mission.bidder_4:main',
         ],
     },
 )

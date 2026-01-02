@@ -31,6 +31,15 @@ def generate_launch_description():
         ),
         Node(
             package='mrs_mission',
+            executable='bidder_1',
+            name='bidder_1_node', # default name. only used if the node did not set its own name in the code (class initialisation)
+            parameters=[
+                os.path.join(config_dir, 'global_params.yaml')
+            ],
+            output='screen'
+        ),
+        Node(
+            package='mrs_mission',
             executable='bidder_2',
             name='bidder_2_node', # default name. only used if the node did not set its own name in the code (class initialisation)
             parameters=[

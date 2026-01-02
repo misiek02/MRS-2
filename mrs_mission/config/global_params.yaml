@@ -9,3 +9,6 @@
     k_d: 0.8    # damping factor - (to slow down velocity as robots reach consensus)
     k_separation: 0.7   # repulsive force
     safe_dist: 0.3    # minimum safe distance between robots
+
+    # mission params (for sake of simplicity)
+    const_speed: 1.0  # using constant speed to keep time ~ distance to task
