@@ -376,6 +376,15 @@ def get_formation_offset_matrix_mission(desired_shape:str, num_robots:int, vlead
                     offsets[0] = np.array([vleader_pos[0]+spacing, vleader_pos[1]])
                     offsets[1] = np.array([vleader_pos[0]-spacing, vleader_pos[1]-spacing])
                     offsets[2] = np.array([vleader_pos[0]-spacing, vleader_pos[1]+spacing])
+                return np.array(offsets)
+
+            case 'A':   # single desired position for a single robot (num_robots=1) to reach
+                offsets[0] = np.array([vleader_pos[0], vleader_pos[1]])
+                return np.array(offsets)
+            
+            case _:
+                return None # invalid string provided for desired_shape
+
 
 
 def get_formation_offset_matrix_square(desired_shape:str, num_robots:int, vleader_pos:list = [0.0, 0.0], spacing=0.7):
