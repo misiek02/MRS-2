@@ -12,7 +12,6 @@ import numpy as np
 import asyncio
 from typing import Dict, List
 from mrs_interfaces.action import Formation
-# from mrs_interfaces.msg import for
 
 # importing helper functions
 from mrs_consensus_improved.utils.helper import *
@@ -41,6 +40,7 @@ class FormationAction(Node):    # Formation Action Server (can handle multiple r
 
         # ATTRIBUTES
         self._actionname = 'formation_action_node'  # same as node name declared above
+        self.prev_task_id = None
         self.controller_timer = None
         self._goal_handle = None
         self.spacing = None
@@ -132,6 +132,14 @@ class FormationAction(Node):    # Formation Action Server (can handle multiple r
             res = Formation.Result()
             res.formation_complete = True
             return res
+        
+        # Check if multiple formation requests for the same task is being made
+        if self.prev_task_id != None and self.prev_task_id == goal_handle.request.task_id:
+            goal_handle.canceled()
+            self.get_logger().info("Formation request has been made already")
+            res = Formation.Result()
+            res.task_requested = True
+            return res
 
         """Execute a goal."""
         self.get_logger().info('Executing New Formation action...')
@@ -146,6 +154,7 @@ class FormationAction(Node):    # Formation Action Server (can handle multiple r
 
         # Get parameters for formation request
         self._goal_handle = goal_handle
+        self.prev_task_id = goal_handle.request.task_id
         self.spacing = goal_handle.request.spacing
         self.formation_center = [goal_handle.request.formation_center_x, goal_handle.request.formation_center_y]
         self.desired_shape = goal_handle.request.desired_shape
@@ -153,7 +162,7 @@ class FormationAction(Node):    # Formation Action Server (can handle multiple r
         self.num_formation_robots = len(self.robot_ids)
 
         self.A = np.ones((self.num_formation_robots, self.num_formation_robots)) - np.eye(self.num_formation_robots)  # Adjacency Matrix: Fully connected for stable formation 
-        self.formation_offsets = get_formation_offset_matrix(self.desired_shape, self.num_formation_robots, vleader_pos=self.formation_center, spacing=self.spacing)
+        self.formation_offsets = get_formation_offset_matrix_mission(self.desired_shape, self.num_formation_robots, vleader_pos=self.formation_center, spacing=self.spacing)
         if not isinstance(self.formation_offsets, np.ndarray):
             self.get_logger().info("Wrong formation provided (or wrong formation to robot number) compatibility. Please check Formation.action file for restrictions.\nSupplying zeros for offsets...")
             self.formation_offsets = np.zeros((self.num_formation_robots, 2))
@@ -193,14 +202,19 @@ class FormationAction(Node):    # Formation Action Server (can handle multiple r
         for index, element in enumerate(self.robot_ids):    # enumerate is used here because of varying sizes of arrays that have robot info
             a_x, a_y = 0.0, 0.0     # Initialising acceleration value
 
+            # Compute acceleration (for the case where the robot is simply moving to a designated position ('A' - alone))
+            if self.desired_shape == "A":
+                a_x += self.formation_offsets[index][0] - self.positions[element][0] 
+                a_y += self.formation_offsets[index][1] - self.positions[element][1] 
 
-            # Compute acceleration based on formation control consensus formula
-            for jindex, jelement in enumerate(self.robot_ids):
-                # Only consider robots in communication range (defined by adjacency matrix A)
-                # A[i,j] == 1 means robot i should track information from robot j
-                if self.A[index][jindex] == 1:
-                    a_x += (self.positions[jelement][0] - self.positions[element][0]) - (self.formation_offsets[jindex][0] - self.formation_offsets[index][0])
-                    a_y += (self.positions[jelement][1] - self.positions[element][1]) - (self.formation_offsets[jindex][1] - self.formation_offsets[index][1])
+            else:
+                # Compute acceleration based on formation control consensus formula
+                for jindex, jelement in enumerate(self.robot_ids):
+                    # Only consider robots in communication range (defined by adjacency matrix A)
+                    # A[i,j] == 1 means robot i should track information from robot j
+                    if self.A[index][jindex] == 1:
+                        a_x += (self.positions[jelement][0] - self.positions[element][0]) - (self.formation_offsets[jindex][0] - self.formation_offsets[index][0])
+                        a_y += (self.positions[jelement][1] - self.positions[element][1]) - (self.formation_offsets[jindex][1] - self.formation_offsets[index][1])
 
             # Proportional gain
             a_x = a_x * self.k_p
