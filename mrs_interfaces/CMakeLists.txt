@@ -16,6 +16,7 @@ find_package(rosidl_default_generators REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/TaskAnnouncement.msg"
   "msg/TaskRemaining.msg"
+  "msg/TaskBidMsg.msg"
   "srv/TaskBid.srv"
   "msg/TaskProgress.msg"
   "msg/Neighbours.msg"

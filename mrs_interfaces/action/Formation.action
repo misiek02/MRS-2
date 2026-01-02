@@ -1,9 +1,10 @@
 # Request
+int32 task_id   # to prevent multiple formation requests for the same task
 float32 spacing     # desired spacing between robots in the chosen formation
 float32 formation_center_x     
 float32 formation_center_y
 
-string desired_shape    # T - Triangle; S - Square; Lh - Line(horizontal); Lv - Line(vertical)
+string desired_shape    # T - Triangle; S - Square; Lh - Line(horizontal); Lv - Line(vertical); A - alone
 # NOTE: For Square formation, the total number of robots MUST be divisible by 4! 
 # NOTE: For Triangle formation, only 3, 4 and 6 number of robots are valid
 # NOTE: Lh is arranged on y-axis
@@ -13,8 +14,9 @@ int32[] robot_ids   # robot ids (starting at 1) which make the formation. The le
 ---
 # Result
 bool formation_complete
+bool task_requested
 ---
 # Feedback
 geometry_msgs/Point[] robot_curr_positions   
-int32[] robot_ids   # ordered list of robot IDs in formation, matching the position list provided above   
+int32[] robot_ids   # ordered list of robot IDs (starting at 0) in formation, matching the position list provided above   
 
