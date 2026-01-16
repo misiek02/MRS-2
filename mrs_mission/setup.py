@@ -34,6 +34,8 @@ setup(
             'bidder_2 = mrs_mission.bidder_2:main',
             'bidder_3 = mrs_mission.bidder_3:main',
             'bidder_4 = mrs_mission.bidder_4:main',
+            'testnode = mrs_mission.testnode:main',
+            'testnode2 = mrs_mission.testnode2:main',
         ],
     },
 )

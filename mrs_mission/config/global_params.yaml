@@ -12,3 +12,4 @@
 
     # mission params (for sake of simplicity)
     const_speed: 1.0  # using constant speed to keep time ~ distance to task
+    spacing: 0.7  # desired spacing between robots in the chosen formation

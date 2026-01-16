@@ -12,6 +12,7 @@ from mrs_interfaces.msg import TaskBidMsg       # published by all bidders
 from mrs_interfaces.action import Formation
 import numpy as np
 from typing import Dict, List, Tuple
+import time
 
 
 class Bidder3(Node):        # Bidder node for robot 3
@@ -22,22 +23,29 @@ class Bidder3(Node):        # Bidder node for robot 3
         self.declare_parameter('num_robots', 4)
         self.declare_parameter('publish_rate', 10.0) # in Hz
         self.declare_parameter('const_speed', 1.0)
+        self.declare_parameter('spacing', 0.5)
 
         # Load parameters
         self.num_robots = self.get_parameter('num_robots').value
         self.publish_rate = float(self.get_parameter('publish_rate').value)
         self.const_speed = self.get_parameter('const_speed').value  
+        self.formation_spacing = self.get_parameter('spacing').value
 
         # ATTRIBUTES
-        self.tasks_progress: Dict[int, Tuple[int, bool]] = {}   # robot_id, task_id, task_completed
+        # self.rtasks_progress: Dict[int, Tuple[int, bool]] = {}   # robot_id, task_id, task_completed
+        self.rtasks_progress: Dict[int, Dict[int, int]] = {}     # robot_id, task_id, tasklevel 
+        self.tasks_progress: Dict[int, bool] = {}   # task_id, task_completed
         self.position = np.zeros((1, 2))
         self.position_received = False
         self.robot_id = 3   # hardcoded for all bidders
-        self.neighbours: Dict[int, List[int]] = {}  # neighbours (for each task) received from dedicated topic 
+        self.neighbours: Dict[int, List[int]] = {}  # neighbours (for each task) received from dedicated topic. structure: task_id, [neighbours] 
         self.task_remaining = False     # flag to check if all tasks have been assigned
-        self.task_schedule:List[Tuple[int, float, List[float], int, str]] = []       # schedule for task allocated to robot (task, makespan, task_location, num_required, task_type)
+        self.task_schedule:List[Tuple[int, float, float, List[float], int, str, str]] = []       # schedule for task allocated to robot (task_id, makespan, task_duration, task_location, num_required, task_formation, task_type)
         self.precedence_tasks: Dict[int, List[int]] = {}
         self.last_bid:TaskBid.Request = None    # to keep the last bid messge which will be resent if not all bida have been received
+        self.curr_task = None   # Current task in task schedule being handled
+        self.task_requested = False
+        self.prev_task_complete = False
 
         # PUBLISHERS
         self.tp_publisher = self.create_publisher(TaskProgress, f"/cf_{self.robot_id}/task_progress", 10)
@@ -64,17 +72,11 @@ class Bidder3(Node):        # Bidder node for robot 3
             self.get_logger().warn('Bid server not available. Waiting...')
 
         # ACTION CLIENT
-        # self._action_client = ActionClient(self, Formation, "formation_action_node") 
+        self._action_client = ActionClient(self, Formation, "formation_action_node") 
 
         # TIMERS
-        # self.connection_timer = self.create_timer(5, self.connect_wait) # wait to allow publisher/subscriber connection
+        self.control_loop_timer = self.create_timer(1/self.publish_rate, self.do_task)  # timer to carry out assigned tasks
         self.get_logger().info(f"Bidder_{self.robot_id} node started...")
-
-
-    # Startup timer callback function
-    # def connect_wait(self):
-    #     self.destroy_timer(self.connection_timer) # stopping the 5-second wait
-    #     # self.timer = self.create_timer(1.0 / self.publish_rate, self.control_loop)
         
 
     def pose_callback(self, msg:PoseStamped):
@@ -85,10 +87,14 @@ class Bidder3(Node):        # Bidder node for robot 3
 
     def tp_callback(self, msg:TaskProgress, rid):
         # Function to get and store all the task progress messages from other robots
-        self.tasks_progress[rid+1] = (msg.task_id, msg.task_completed)
+        # self.rtasks_progress[rid+1] = (msg.task_id, msg.task_completed)
+        self.rtasks_progress[rid+1][msg.task_id] = msg.tasklevel  # robot_id, task_id, tasklevel 
+        self.tasks_progress[msg.task_id] = msg.task_completed
+
 
     def get_neighbours_callback(self, msg:Neighbours):
         # Function to update the list of neighbours for each task, to use for task coordination 
+        # Note that the list of neighbours includes the bidder id as well
         self.neighbours[msg.task_id] = msg.neighbours
     
     def tr_callback(self, msg:TaskRemaining):
@@ -105,15 +111,15 @@ class Bidder3(Node):        # Bidder node for robot 3
         dist_to_task = np.linalg.norm(self.position - np.array([msg.task_location.x, msg.task_location.y]).reshape(1,2))
         duration = msg.task_time[0]         # [DU, ES, LF]
         if len(self.task_schedule) > 0:
-            dist_to_task = np.linalg.norm(np.array(self.task_schedule[-1][2]).reshape(1,2) - np.array([msg.task_location.x, msg.task_location.y]).reshape(1,2)) 
+            dist_to_task = np.linalg.norm(np.array(self.task_schedule[-1][3]).reshape(1,2) - np.array([msg.task_location.x, msg.task_location.y]).reshape(1,2)) 
             task_start_time = max((self.task_schedule[-1][1] + dist_to_task)/self.const_speed, msg.task_time[1])
         else:
             task_start_time = max(dist_to_task/self.const_speed, msg.task_time[1])
         # if (msg.task_time[-1] >= (task_start_time + duration)) and msg.winner_selected is False:
-        if msg.winner_selected is False:            
+        if msg.winner_selected is False:
             # Publish bid as message (this is for the auctioneer node to handle things)
             self.pub_bid(msg.task_id, task_start_time)
-            
+
             # make a bid service request
             bid_request = TaskBid.Request()
             bid_request.bidder_id = self.robot_id
@@ -122,8 +128,8 @@ class Bidder3(Node):        # Bidder node for robot 3
             self.last_bid = bid_request     # saving the last bid incase it has to be resent
             self.send_bidrequest(bid_request)
 
-            # Add task to schedule (structure: task_id, makespan, task_location, num_required, task_type)
-            self.task_schedule.append((msg.task_id, task_start_time+duration, [msg.task_location.x, msg.task_location.y], msg.num_required, msg.task_type))
+            # Add task to schedule (structure: task_id, makespan, task_location, num_required, task_formation, task_type)
+            self.task_schedule.append((msg.task_id, task_start_time+duration, duration, [msg.task_location.x, msg.task_location.y], msg.num_required, msg.task_formation, msg.task_type))
 
     def bid_response_callback(self, future):
         try:
@@ -139,6 +145,164 @@ class Bidder3(Node):        # Bidder node for robot 3
 
         except Exception as e:
             self.get_logger().error(f"{self.get_name()}: Service call failed: {e}")
+
+    
+    def do_task(self):
+        if self.task_remaining == False:    # don't start working on tasks in schedule until all tasks have been assigned
+            return
+        
+        # Check if previous task (if any) has been completed
+        if self.prev_task_complete == True:
+            self.task_schedule.pop(0)
+            self.prev_task_complete = False
+
+        for t in self.task_schedule:
+            self.curr_task = t
+            if self.curr_task[-1] == 'SR':
+                # Check precedence constraints
+                if self.curr_task[0] in self.precedence_tasks:
+                    prec_tasks = self.precedence_tasks[self.curr_task[0]]
+                    if not all(self.tasks_progress[i] for i in prec_tasks):
+                        return  # wait till all precedence tasks are complete 
+        
+                self.send_goal(self.curr_task[0], self.curr_task[5], self.formation_spacing, self.curr_task[3][0], self.curr_task[3][1], [self.robot_id])
+                
+            else:   # MR task
+                # Check precedence constraints
+                if self.curr_task[0] in self.precedence_tasks:
+                    prec_tasks = self.precedence_tasks[self.curr_task[0]]
+                    if not all(self.tasks_progress[i] for i in prec_tasks):
+                        return  # wait till all precedence tasks are complete 
+                
+                # Check that all neighbours have completed their tasks, and if a neighbour is currently carrying out this task
+                # (i.e, has requested for a formation action for this MR task), don't request and just track this neighbour's progress to know if task is complete
+                neighbours = self.neighbours[self.curr_task[0]]
+                for n in neighbours:
+                    for i in self.rtasks_progress[n]:
+                        if i != self.curr_task[0]:
+                            if self.rtasks_progress[n][i] != 2: # previous neighbour's task is ongoing
+                                self.get_logger().info(f"Neighbour {n} still doing previous task")
+                                return
+                        if i == self.curr_task[0] and self.rtasks_progress[n][i] == 1:  # neighbour robot already requested MR formation
+                            self.get_logger().info(f"Neighbour {n} already requested T{i} formation. Tracking...")
+                            # Publish task progress message
+                            tp = TaskProgress()
+                            tp.robot_id = self.robot_id
+                            tp.task_completed = False
+                            tp.task_id = self.curr_task[0]  # remember task scheule structure: (task_id, makespan, duration, task_location, num_required, task_formation, task_type)
+                            tp.tasklevel = 1    # 0-notcomplete; 1-ongoing; 2-complete;
+                            self.tp_publisher.publish(tp)
+                            return
+                        elif i == self.curr_task[0] and self.rtasks_progress[n][i] == 2:    # MR formation requested by neighbour robot is complete
+                            self.get_logger().info(f"T{i} MR task complete!!")
+                            self.prev_task_complete = True
+                            # Publish task progress message
+                            tp = TaskProgress()
+                            tp.robot_id = self.robot_id
+                            tp.task_completed = True
+                            tp.task_id = self.curr_task[0]  # remember task scheule structure: (task_id, makespan, duration, task_location, num_required, task_formation, task_type)
+                            tp.tasklevel = 2    # 0-notcomplete; 1-ongoing; 2-complete;
+                            self.tp_publisher.publish(tp)
+                            return
+                
+                self.send_goal(self.curr_task[0], self.curr_task[4], self.formation_spacing, self.curr_task[2][0], self.curr_task[2][1], self.neighbours[self.curr_task[0]])
+
+
+    def send_goal(self, task_id, shape, spacing, center_x, center_y, robot_ids):
+        """
+            Send a formation goal to the formation action server
+
+            Paramaters:
+                - robot_ids: (list) list of robots for formation request. it is a list with a single value if the formation is to move to a position
+        
+        """
+        
+        self.get_logger().info('Waiting for action server...')
+        self._action_client.wait_for_server()
+        
+        # Create goal message
+        goal_msg = Formation.Goal()
+        goal_msg.task_id = task_id
+        goal_msg.spacing = spacing
+        goal_msg.formation_center_x = center_x
+        goal_msg.formation_center_y = center_y
+        goal_msg.desired_shape = shape
+        goal_msg.robot_ids = robot_ids
+        
+        self.get_logger().info(f'Sending goal: Task {task_id}, Shape={shape}, Robots={robot_ids}')
+        
+        # Publish task progress message
+        tp = TaskProgress()
+        tp.robot_id = self.robot_id
+        tp.task_completed = False
+        tp.task_id = self.curr_task[0]  # remember task scheule structure: (task_id, makespan, duration, task_location, num_required, task_formation, task_type)
+        tp.tasklevel = 1    # 0-notcomplete; 1-ongoing; 2-complete;
+        self.tp_publisher.publish(tp)
+        
+        # Send goal
+        self._send_goal_future = self._action_client.send_goal_async(
+            goal_msg, 
+            feedback_callback=self.feedback_callback)
+        self._send_goal_future.add_done_callback(self.goal_response_callback)
+    
+    def feedback_callback(self, feedback_msg):
+        """Handle feedback during goal execution"""
+        feedback = feedback_msg.feedback
+        
+        # Log current robot positions
+        self.get_logger().info(
+            f'(Feedback) Robots in formation: {len(feedback.robot_ids)}',
+            throttle_duration_sec=2.0)  # Log every 2 seconds
+        
+        # Publish task progress message
+        tp = TaskProgress()
+        tp.robot_id = self.robot_id
+        tp.task_completed = False
+        tp.task_id = self.curr_task[0]  # remember task scheule structure: (task_id, makespan, duration, task_location, num_required, task_formation, task_type)
+        tp.tasklevel = 1    # 0-notcomplete; 1-ongoing; 2-complete;
+        self.tp_publisher.publish(tp)
+        
+    def goal_response_callback(self, future):
+        """Handle the goal acceptance/rejection"""
+        goal_handle = future.result()
+        
+        if not goal_handle.accepted:
+            self.get_logger().info('Goal rejected')
+            return
+            
+        self.get_logger().info('Goal accepted')
+        
+        # Wait for result
+        self._get_result_future = goal_handle.get_result_async()
+        self._get_result_future.add_done_callback(self.get_result_callback)
+        
+    def get_result_callback(self, future):
+        """Handle the final result"""
+        result = future.result().result
+        
+        if result.formation_complete:
+            self.prev_task_complete = True
+            self.get_logger().info('Formation completed successfully!')
+
+            # Publish task progress message
+            tp = TaskProgress()
+            tp.robot_id = self.robot_id
+            tp.task_completed = True
+            tp.task_id = self.curr_task[0]  # remember task schedule structure: (task_id, makespan, duration, task_location, num_required, task_formation, task_type)
+            tp.tasklevel = 2    # 0-notcomplete; 1-ongoing; 2-complete;
+            self.tp_publisher.publish(tp)
+        else:                
+            self.task_requested = True
+            self.get_logger().info('Formation did not complete')
+
+            # Publish task progress message
+            tp = TaskProgress()
+            tp.robot_id = self.robot_id
+            tp.task_completed = False
+            tp.task_id = self.curr_task[0]  # remember task scheule structure: (task_id, makespan, duration, task_location, num_required, task_formation, task_type)
+            tp.tasklevel = 0    # 0-notcomplete; 1-ongoing; 2-complete;
+            self.tp_publisher.publish(tp)
+            
 
 
     def send_bidrequest(self, req:TaskBid.Request):

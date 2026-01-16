@@ -5,14 +5,12 @@ from geometry_msgs.msg import PoseStamped
 from mrs_interfaces.msg import Neighbours       # published only by auctioneer
 from mrs_interfaces.msg import TaskAnnouncement # published only by auctioneer
 from mrs_interfaces.msg import TaskRemaining    # published only by auctioneer
-from mrs_interfaces.msg import TaskProgress     # published by all bidders
 from mrs_interfaces.srv import TaskBid
 from mrs_interfaces.msg import TaskBidMsg       # published by all bidders
 import numpy as np
 from typing import Dict, List
 from threading import Event, Thread, Lock
 import heapq
-from mrs_interfaces.action import Formation
 import time
 
 
@@ -43,6 +41,9 @@ class AuctioneerNode(Node):     # Auctioneer node for task, also doubles as Bidd
         self.declare_parameter('p_2')
         self.declare_parameter('p_3')
         self.declare_parameter('p_4')
+        self.declare_parameter('T7_shape')
+        self.declare_parameter('T8_shape')
+        self.declare_parameter('T9_shape')
         self.declare_parameter('bid_timeout', 5.0)  # timeout for bid collection
 
         # Load parameters
@@ -62,6 +63,9 @@ class AuctioneerNode(Node):     # Auctioneer node for task, also doubles as Bidd
         self.p_2 = self.get_parameter('p_2').value
         self.p_3 = self.get_parameter('p_3').value
         self.p_4 = self.get_parameter('p_4').value
+        self.T7_shape = self.get_parameter('T7_shape').value
+        self.T8_shape = self.get_parameter('T8_shape').value
+        self.T9_shape = self.get_parameter('T9_shape').value
 
         # ATTRIBUTES
         self.position = np.zeros((1, 2))
@@ -188,6 +192,16 @@ class AuctioneerNode(Node):     # Auctioneer node for task, also doubles as Bidd
             ta_msg.task_type = "MR"
         else:
             ta_msg.task_type = "SR"
+
+        # Add task formation shape
+        if tid == 7:
+            ta_msg.task_formation = self.T7_shape
+        elif tid == 8:
+            ta_msg.task_formation = self.T8_shape
+        elif tid == 9:
+            ta_msg.task_formation = self.T9_shape
+        else:
+            ta_msg.task_formation = 'A'
 
         # publish current task
         self.ta_publisher.publish(ta_msg)

@@ -28,3 +28,8 @@ auctioneer_node:
     p_3: [9, 7, 8]
     p_4: [10, 6, 8]
 
+    # Assigning the shape of MR tasks
+    T7_shape: 'Lv'
+    T8_shape: 'Lh'
+    T9_shape: 'T'
+
