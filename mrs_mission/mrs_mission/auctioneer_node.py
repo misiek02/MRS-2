@@ -243,6 +243,7 @@ class AuctioneerNode(Node):     # Auctioneer node for task, also doubles as Bidd
         else:
             tr_msg = TaskRemaining()
             tr_msg.all_tasks_allocated = True
+            tr_msg.n_tasks = self.n_tasks
             self.tr_publisher.publish(tr_msg)   # publish that all tasks have been allocated
 
         
@@ -288,9 +289,9 @@ class AuctioneerNode(Node):     # Auctioneer node for task, also doubles as Bidd
                     response.assigned = True
                     if request.task_id in self.p_constraints[:,0]:
                         ind = np.where(self.p_constraints[:,0] == request.task_id)[0][0]
-                        self.get_logger().info(f"{ind}")
-                        self.get_logger().info(f"{list(self.p_constraints[ind, :].astype(int))}")
-                        self.get_logger().info(f"{type(list(self.p_constraints[ind, :].astype(int)))}")
+                        # self.get_logger().info(f"{ind}")
+                        # self.get_logger().info(f"{list(self.p_constraints[ind, :].astype(int))}")
+                        # self.get_logger().info(f"{type(list(self.p_constraints[ind, :].astype(int)))}")
                         response.precedence_tasks = self.p_constraints[ind, :].astype(int).tolist()
                     # update task info Dict
                     self.task_info[request.task_id][-1] = True
