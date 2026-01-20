@@ -68,7 +68,7 @@ class Bidder1(Node):        # Bidder node for robot 1
         self.neighbours_sub = self.create_subscription(Neighbours, "neighbours", self.get_neighbours_callback, sub_qos)
         for i in range(self.num_robots):
             robot_id = i+1  # Convert 0-indexed loop variable to 1-indexed robot ID (for topic naming)
-            self.tp_subs.append(self.create_subscription(TaskProgress, f"/cf_{robot_id}/task_progress", lambda msg, rid=i: self.tp_callback(msg, rid), 10))
+            self.tp_subs.append(self.create_subscription(TaskProgress, f"/cf_{robot_id}/task_progress", lambda msg, rid=i: self.tp_callback(msg, rid), 5))
 
         # SERVICE CLIENT
         self.bid_client = self.create_client(TaskBid, 'task_bid')
@@ -99,7 +99,7 @@ class Bidder1(Node):        # Bidder node for robot 1
     def get_neighbours_callback(self, msg:Neighbours):
         # Function to update the list of neighbours for each task, to use for task coordination 
         # Note that the list of neighbours includes the bidder id as well
-        self.neighbours[msg.task_id] = msg.neighbours
+        self.neighbours[msg.task_id] = list(msg.neighbours)
     
     def tr_callback(self, msg:TaskRemaining):
         self.task_remaining = msg.all_tasks_allocated
@@ -147,7 +147,7 @@ class Bidder1(Node):        # Bidder node for robot 1
                 if response.assigned == False:
                     self.task_schedule.remove(next(s for s in self.task_schedule if s[0] == response.task_id))  # remove the task from the schedule
                 else:
-                    self.precedence_tasks[response.task_id] = response.precedence_tasks
+                    self.precedence_tasks[response.task_id] = list(response.precedence_tasks)
 
         except Exception as e:
             self.get_logger().error(f"{self.get_name()}: Service call failed: {e}")
@@ -168,24 +168,24 @@ class Bidder1(Node):        # Bidder node for robot 1
             self.curr_task = t
             if self.curr_task[-1] == 'SR':
                 # Check precedence constraints
-                # if self.curr_task[0] in self.precedence_tasks:
-                #     prec_tasks = self.precedence_tasks[self.curr_task[0]]
-                #     if self.prev_taskid is not None and self.prev_taskid in prec_tasks: # removing previous completed task..
-                #         prec_tasks.remove(self.prev_taskid) 
-                #     if not all(self.tasks_progress[i] for i in prec_tasks):
-                #         return  # wait till all precedence tasks are complete 
+                if self.curr_task[0] in self.precedence_tasks:
+                    prec_tasks = self.precedence_tasks[self.curr_task[0]]
+                    if self.prev_taskid is not None and self.prev_taskid in prec_tasks: # removing previous completed task..
+                        prec_tasks.remove(self.prev_taskid) 
+                    if not all(self.tasks_progress[i] for i in prec_tasks):
+                        return  # wait till all precedence tasks are complete 
 
                 if not self.goal_sent:
                     self.send_goal(self.curr_task[0], self.curr_task[5], self.formation_spacing, self.curr_task[3][0], self.curr_task[3][1], [self.robot_id])
                 
             else:   # MR task
                 # Check precedence constraints
-                # if self.curr_task[0] in self.precedence_tasks:
-                #     prec_tasks = self.precedence_tasks[self.curr_task[0]]
-                #     if self.prev_taskid is not None and self.prev_taskid in prec_tasks: # removing previous completed task..
-                #         prec_tasks.remove(self.prev_taskid) 
-                #     if not all(self.tasks_progress[i] for i in prec_tasks):
-                #         return  # wait till all precedence tasks are complete 
+                if self.curr_task[0] in self.precedence_tasks:
+                    prec_tasks = self.precedence_tasks[self.curr_task[0]]
+                    if self.prev_taskid is not None and self.prev_taskid in prec_tasks: # removing previous completed task..
+                        prec_tasks.remove(self.prev_taskid) 
+                    if not all(self.tasks_progress[i] for i in prec_tasks):
+                        return  # wait till all precedence tasks are complete 
                 
                 # Check that all neighbours have completed their tasks, and if a neighbour is currently carrying out this task
                 # (i.e, has requested for a formation action for this MR task), don't request and just track this neighbour's progress to know if task is complete
@@ -212,6 +212,7 @@ class Bidder1(Node):        # Bidder node for robot 1
                         elif i == self.curr_task[0] and self.rtasks_progress[n][i] == 2:    # MR formation requested by neighbour robot is complete
                             self.get_logger().info(f"T{i} MR task complete!!")
                             self.prev_task_complete = True
+                            self.goal_sent = False
                             # Publish task progress message
                             tp = TaskProgress()
                             tp.robot_id = self.robot_id
@@ -220,9 +221,8 @@ class Bidder1(Node):        # Bidder node for robot 1
                             tp.tasklevel = 2    # 0-notcomplete; 1-ongoing; 2-complete;
                             self.tp_publisher.publish(tp)
                             return
-                # if not self.goal_sent:
-                self.get_logger().info("HERE")
-                self.send_goal(self.curr_task[0], self.curr_task[4], self.formation_spacing, self.curr_task[2][0], self.curr_task[2][1], self.neighbours[self.curr_task[0]])
+                if not self.goal_sent:
+                    self.send_goal(self.curr_task[0], self.curr_task[5], self.formation_spacing, self.curr_task[3][0], self.curr_task[3][1], self.neighbours[self.curr_task[0]])
 
 
     def send_goal(self, task_id, shape, spacing, center_x, center_y, robot_ids):

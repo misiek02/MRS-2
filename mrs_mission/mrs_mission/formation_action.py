@@ -322,9 +322,9 @@ class FormationAction(Node):    # Formation Action Server (can handle multiple r
             #      This applied norm twice, which is incorrect
             # NEW: Single norm calculation of the position error matrix
             position_error = np.linalg.norm(indexed_poses - formation_offsets)
-            position_error2 = np.mean(indexed_poses, axis=1) - np.array([goal_state['formation_center'][0], goal_state['formation_center'][1]])
-            position_error2 = np.linalg.norm(position_error2)
-            position_error = min(position_error, position_error2)
+            # position_error2 = np.mean(indexed_poses, axis=1) - np.array([goal_state['formation_center'][0], goal_state['formation_center'][1]])
+            # position_error2 = np.linalg.norm(position_error2)
+            # position_error = min(position_error, position_error2)
             # self.get_logger().info(f"{position_error:.2f}, {position_error2:.2f}")
             
             if position_error <= goal_state['MIN_DIFF']:
