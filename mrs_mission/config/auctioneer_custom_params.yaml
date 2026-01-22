@@ -1,0 +1,38 @@
+# params for auctioneer node, (which also doubles as the bidder node for robot 1, 'bidder_1')
+auctioneer_custom_node:  
+  ros__parameters:
+    # tasks
+    n_tasks: 10
+    T1: [0.0, 0.0, 1.0, 5.0]
+    T2: [0.0, -1.0, 1.0, 5.0]
+    T3: [0.0, -1.5, 1.0, 5.0]
+    T4: [0.0, 1.5, 1.0, 5.0]
+    T5: [-1.0, -1.0, 1.0, 5.0]
+    T6: [1.0, -1.0, 1.0, 5.0]
+
+    T7: [0.0, 0.0, 4.0, 5.0]
+    T8: [0.0, 0.0, 4.0, 5.0]
+    T9: [0.0, 0.0, 4.0, 5.0]
+    T10: [0.0, 0.0, 4.0, 5.0]
+
+    # task heirarchy --> TF >> TL >> TH
+    # TF: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6']  # free tasks
+    TF: [1, 2, 3, 4, 5, 6]
+    # TL: ['T7', 'T8']  # second layer
+    TL: [7]
+    TL2: [8]
+    TL3: [9]
+    # TH: ['T9', 'T10']  # hidden layer
+    TH: [10]
+
+    # task precedence constraints 
+    p_1: [7, 1, 2, 3, 4, 5, 6]
+    p_2: [8, 1, 2, 3, 4, 5, 7]
+    p_3: [9, 1, 2, 3, 4, 5, 8]
+    p_4: [10, 1, 2, 3, 7, 8, 9]
+
+    # Assigning the shape of MR tasks
+    T7_shape: 'C'
+    T8_shape: 'S'
+    T9_shape: 'S'
+    T10_shape: 'L'

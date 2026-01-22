@@ -50,6 +50,7 @@ class Bidder1(Node):        # Bidder node for robot 1
         self.prev_task_complete = False
         self.goal_sent = False      # to check if one formation request has been sent. if yes, then don't send again. This is to avoid multiple formation requests
         self.prev_taskid = None
+        self.task_level = defaultdict(int)
 
         # PUBLISHERS
         self.tp_publisher = self.create_publisher(TaskProgress, f"/cf_{self.robot_id}/task_progress", 10)
@@ -89,11 +90,15 @@ class Bidder1(Node):        # Bidder node for robot 1
 
         self.position_received = True
 
-    def tp_callback(self, msg:TaskProgress, rid):
-        # Function to get and store all the task progress messages from other robots
-        # self.rtasks_progress[rid+1] = (msg.task_id, msg.task_completed)
-        self.rtasks_progress[rid+1][msg.task_id] = msg.tasklevel  # robot_id, task_id, tasklevel 
-        self.tasks_progress[msg.task_id] = msg.task_completed
+    def tp_callback(self, msg: TaskProgress, rid):
+        # store per-robot tasklevel
+        self.rtasks_progress[rid+1][msg.task_id] = msg.tasklevel
+
+        # MONOTONIC global completion: keep the max level ever seen
+        self.task_level[msg.task_id] = max(self.task_level[msg.task_id], msg.tasklevel)
+
+        # (optional) keep your old bool too, but make it monotonic
+        self.tasks_progress[msg.task_id] = self.tasks_progress.get(msg.task_id, False) or msg.task_completed
 
 
     def get_neighbours_callback(self, msg:Neighbours):
@@ -154,75 +159,131 @@ class Bidder1(Node):        # Bidder node for robot 1
 
     
     def do_task(self):
-        if self.task_remaining == False:    # don't start working on tasks in schedule until all tasks have been assigned
+        # Don't start until auctioneer says all tasks allocated
+        if not self.task_remaining:
             return
-        
-        # Check if previous task (if any) has been completed
-        if self.prev_task_complete == True:
+
+        # If we just finished a task, pop it and reset flags
+        if self.prev_task_complete:
+            if self.curr_task is not None:
+                self.prev_taskid = self.curr_task[0]
             self.goal_sent = False
-            self.prev_taskid = self.curr_task[0]
-            self.task_schedule.pop(0)
+            if self.task_schedule:
+                self.task_schedule.pop(0)
             self.prev_task_complete = False
 
-        for t in self.task_schedule:
-            self.curr_task = t
-            if self.curr_task[-1] == 'SR':
-                # Check precedence constraints
-                if self.curr_task[0] in self.precedence_tasks:
-                    prec_tasks = self.precedence_tasks[self.curr_task[0]]
-                    if self.prev_taskid is not None and self.prev_taskid in prec_tasks: # removing previous completed task..
-                        prec_tasks.remove(self.prev_taskid) 
-                    if not all(self.tasks_progress[i] for i in prec_tasks):
-                        return  # wait till all precedence tasks are complete 
+        # Nothing left
+        if not self.task_schedule:
+            return
 
-                if not self.goal_sent:
-                    self.send_goal(self.curr_task[0], self.curr_task[5], self.formation_spacing, self.curr_task[3][0], self.curr_task[3][1], [self.robot_id])
-                
-            else:   # MR task
-                # Check precedence constraints
-                if self.curr_task[0] in self.precedence_tasks:
-                    prec_tasks = self.precedence_tasks[self.curr_task[0]]
-                    if self.prev_taskid is not None and self.prev_taskid in prec_tasks: # removing previous completed task..
-                        prec_tasks.remove(self.prev_taskid) 
-                    if not all(self.tasks_progress[i] for i in prec_tasks):
-                        return  # wait till all precedence tasks are complete 
-                
-                # Check that all neighbours have completed their tasks, and if a neighbour is currently carrying out this task
-                # (i.e, has requested for a formation action for this MR task), don't request and just track this neighbour's progress to know if task is complete
-                neighbours = self.neighbours[self.curr_task[0]]
-                for n in neighbours:
-                    if n == self.robot_id:
-                        continue
-                    for i in self.rtasks_progress[n]:
-                        if i != self.curr_task[0]:
-                            if self.rtasks_progress[n][i] != 2: # previous neighbour's task is ongoing
-                                self.get_logger().info(f"Neighbour {n} still doing previous task; INFO: {self.rtasks_progress[n]}", once=True)
-                                return
-                        if i == self.curr_task[0] and self.rtasks_progress[n][i] == 1:  # neighbour robot already requested MR formation
-                            self.get_logger().info(f"Neighbour {n} already requested T{i} formation. Tracking...")
-                            self.goal_sent = True
-                            # Publish task progress message
-                            tp = TaskProgress()
-                            tp.robot_id = self.robot_id
-                            tp.task_completed = False
-                            tp.task_id = self.curr_task[0]  # remember task scheule structure: (task_id, makespan, duration, task_location, num_required, task_formation, task_type)
-                            tp.tasklevel = 1    # 0-notcomplete; 1-ongoing; 2-complete;
-                            self.tp_publisher.publish(tp)
-                            return
-                        elif i == self.curr_task[0] and self.rtasks_progress[n][i] == 2:    # MR formation requested by neighbour robot is complete
-                            self.get_logger().info(f"T{i} MR task complete!!")
-                            self.prev_task_complete = True
-                            self.goal_sent = False
-                            # Publish task progress message
-                            tp = TaskProgress()
-                            tp.robot_id = self.robot_id
-                            tp.task_completed = True
-                            tp.task_id = self.curr_task[0]  # remember task scheule structure: (task_id, makespan, duration, task_location, num_required, task_formation, task_type)
-                            tp.tasklevel = 2    # 0-notcomplete; 1-ongoing; 2-complete;
-                            self.tp_publisher.publish(tp)
-                            return
-                if not self.goal_sent:
-                    self.send_goal(self.curr_task[0], self.curr_task[5], self.formation_spacing, self.curr_task[3][0], self.curr_task[3][1], self.neighbours[self.curr_task[0]])
+        # IMPORTANT: handle ONLY the first task in the schedule
+        self.curr_task = self.task_schedule[0]
+        task_id = self.curr_task[0]
+        task_type = self.curr_task[-1]   # 'SR' or 'MR'
+
+        # ---------------- Precedence constraints (shared SR/MR) ----------------
+        if task_id in self.precedence_tasks:
+            # Copy list so we don't mutate the dict value
+            prec_tasks = list(self.precedence_tasks[task_id])
+
+            # Remove "self" if it exists (fixes deadlock like [7,1,2])
+            prec_tasks = [t for t in prec_tasks if t != task_id]
+
+            # Optional: don't wait on the task we *just* finished (also don't mutate)
+            if self.prev_taskid is not None:
+                prec_tasks = [t for t in prec_tasks if t != self.prev_taskid]
+
+            # Use .get() to avoid KeyError if some task id not initialized yet
+            if not all(self.tasks_progress.get(t, False) for t in prec_tasks):
+                return
+
+        # ---------------- Execute SR task ----------------
+        if task_type == 'SR':
+            if not self.goal_sent:
+                self.send_goal(
+                    task_id,
+                    self.curr_task[5],                 # shape
+                    self.formation_spacing,
+                    self.curr_task[3][0],              # x
+                    self.curr_task[3][1],              # y
+                    [self.robot_id]
+                )
+            return
+
+        # ---------------- Execute MR task ----------------
+        # Wait until neighbours list is received for this task
+        if task_id not in self.neighbours or not self.neighbours[task_id]:
+            return
+
+        neighbours = list(self.neighbours[task_id])  # usually includes self
+
+        # (Optional) simple leader election: lowest robot_id requests the formation
+        leader = min(neighbours)
+
+        # If any neighbour is currently doing some other task (tasklevel==1), wait
+        for n in neighbours:
+            if n == self.robot_id:
+                continue
+            # if neighbour has ANY ongoing task that is not this one, don't start MR yet
+            if any(level == 1 for tid, level in self.rtasks_progress[n].items() if tid != task_id):
+                self.get_logger().info(
+                    f"Waiting: neighbour {n} still busy with another task {self.rtasks_progress[n]}",
+                    throttle_duration_sec=2.0
+                )
+                return
+
+        # If someone (leader or others) already started this MR task, just track it
+        someone_started = any(
+            self.rtasks_progress[n].get(task_id, 0) == 1
+            for n in neighbours
+            if n != self.robot_id
+        )
+
+        someone_finished = any(
+            self.rtasks_progress[n].get(task_id, 0) == 2
+            for n in neighbours
+            if n != self.robot_id
+        )
+
+        # If someone finished, mark complete locally
+        if someone_finished:
+            self.get_logger().info(f"T{task_id} MR task complete (tracked)!")
+            self.prev_task_complete = True
+            self.goal_sent = False
+
+            tp = TaskProgress()
+            tp.robot_id = self.robot_id
+            tp.task_completed = True
+            tp.task_id = task_id
+            tp.tasklevel = 2
+            self.tp_publisher.publish(tp)
+            return
+
+        # If someone started, publish "ongoing" and wait
+        if someone_started:
+            self.goal_sent = True
+            tp = TaskProgress()
+            tp.robot_id = self.robot_id
+            tp.task_completed = False
+            tp.task_id = task_id
+            tp.tasklevel = 1
+            self.tp_publisher.publish(tp)
+            return
+
+        # Otherwise nobody started yet -> leader sends the goal
+        if not self.goal_sent and self.robot_id == leader:
+            self.send_goal(
+                task_id,
+                self.curr_task[5],                 # shape
+                self.formation_spacing,
+                self.curr_task[3][0],              # center x
+                self.curr_task[3][1],              # center y
+                neighbours                          # all robots in formation
+            )
+            return
+
+        # Non-leader waits for leader to start
+        return
 
 
     def send_goal(self, task_id, shape, spacing, center_x, center_y, robot_ids):
@@ -302,9 +363,6 @@ class Bidder1(Node):        # Bidder node for robot 1
         
         if result.formation_complete:
 
-            self.prev_task_complete = True
-            self.get_logger().info('Formation request completed successfully!')
-
             # Publish task progress message
             tp = TaskProgress()
             tp.robot_id = self.robot_id
@@ -312,6 +370,9 @@ class Bidder1(Node):        # Bidder node for robot 1
             tp.task_id = self.curr_task[0]  # remember task schedule structure: (task_id, makespan, duration, task_location, num_required, task_formation, task_type)
             tp.tasklevel = 2    # 0-notcomplete; 1-ongoing; 2-complete;
             self.tp_publisher.publish(tp)
+
+            self.prev_task_complete = True
+            self.get_logger().info('Formation request completed successfully!')
 
             # wait at position for task_duration time, before moving to next task
             self.get_clock().sleep_for(Duration(seconds=self.task_schedule[0][2]))

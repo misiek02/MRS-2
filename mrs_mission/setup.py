@@ -29,6 +29,7 @@ setup(
     entry_points={
         'console_scripts': [
             'auctioneer_node = mrs_mission.auctioneer_node:main',
+            'auctioneer_custom_node = mrs_mission.auctioneer_custom_node:main',
             'formation_action = mrs_mission.formation_action:main',
             'bidder_1 = mrs_mission.bidder_1:main',
             'bidder_2 = mrs_mission.bidder_2:main',

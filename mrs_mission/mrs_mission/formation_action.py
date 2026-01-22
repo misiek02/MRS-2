@@ -153,11 +153,18 @@ class FormationAction(Node):    # Formation Action Server (can handle multiple r
         goal_state['A'] = np.ones((num_robots, num_robots)) - np.eye(num_robots)  # Adjacency Matrix: Fully connected for stable formation 
         
         # Get formation offsets
-        goal_state['formation_offsets'] = get_formation_offset_matrix_mission(
-            goal_state['desired_shape'], 
-            num_robots, 
-            vleader_pos=goal_state['formation_center'], 
-            spacing=goal_state['spacing'])
+        if goal_state['desired_shape'] == 'S':
+            goal_state['formation_offsets'] = get_formation_offset_matrix_square(
+                goal_state['desired_shape'], 
+                num_robots, 
+                vleader_pos=goal_state['formation_center'], 
+                spacing=goal_state['spacing'])
+        else: # other shapes
+            goal_state['formation_offsets'] = get_formation_offset_matrix_mission(
+                goal_state['desired_shape'], 
+                num_robots, 
+                vleader_pos=goal_state['formation_center'], 
+                spacing=goal_state['spacing'])
             
         if not isinstance(goal_state['formation_offsets'], np.ndarray):
             self.get_logger().info("Wrong formation provided (or wrong formation to robot number) compatibility. Please check Formation.action file for restrictions.\nSupplying zeros for offsets...")
@@ -274,7 +281,10 @@ class FormationAction(Node):    # Formation Action Server (can handle multiple r
 
                 # Add collision avoidance component
                 col_acc_x, col_acc_y  = 0.0, 0.0
-                for jindex, jelement in enumerate(robot_ids):
+                robot_list = []
+                for x in range(self.num_robots):
+                    robot_list.append(x)
+                for jindex, jelement in enumerate(robot_list):
                     if element == jelement:
                         continue    # Skip self-repulsion (a robot doesn't repel from itself)
                     

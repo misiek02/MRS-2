@@ -331,6 +331,26 @@ def get_formation_offset_matrix_mission(desired_shape:str, num_robots:int, vlead
 
                 # Return the offset positions
                 return np.array(offsets)
+            
+            case 'C':
+                if num_robots == 4:
+                    offsets[0] = np.array([vleader_pos[0]+spacing, vleader_pos[1]+spacing])
+                    offsets[1] = np.array([vleader_pos[0]-spacing, vleader_pos[1]+spacing])
+                    offsets[2] = np.array([vleader_pos[0]+(spacing*1.75), vleader_pos[1]-spacing])
+                    offsets[3] = np.array([vleader_pos[0]-(spacing*1.75), vleader_pos[1]-spacing])
+                
+                # Return the offset positions
+                return np.array(offsets)
+            
+            case 'L':
+                if num_robots == 4:
+                    offsets[0] = np.array([vleader_pos[0]+spacing, vleader_pos[1]+spacing])
+                    offsets[1] = np.array([vleader_pos[0]-spacing, vleader_pos[1]+spacing])
+                    offsets[2] = np.array([vleader_pos[0]-spacing, vleader_pos[1]])
+                    offsets[3] = np.array([vleader_pos[0]-spacing, vleader_pos[1]-spacing])
+                
+                # Return the offset positions
+                return np.array(offsets)
 
             case _:
                 return None # invalid string provided for desired_shape
@@ -387,9 +407,15 @@ def get_formation_offset_matrix_mission(desired_shape:str, num_robots:int, vlead
 
 
 
-def get_formation_offset_matrix_square(desired_shape:str, num_robots:int, vleader_pos:list = [0.0, 0.0], spacing=0.7):
+def get_formation_offset_matrix_square(desired_shape: str,
+                                       num_robots: int,
+                                       vleader_pos: list = [0.0, 0.0],
+                                       spacing=0.7):
     """
-        Function to create the offset matrix for SQUARE formation control.
+    Perfect square perimeter with FIXED spacing = 0.75 m (ignores passed spacing).
+    Returns Nx2 ABSOLUTE target positions centered at vleader_pos.
+
+    Function to create the offset matrix for SQUARE formation control.
         Note that this function assumes: the number of robots in the formation is divisible by 4.
 
         Parameters:
@@ -401,46 +427,50 @@ def get_formation_offset_matrix_square(desired_shape:str, num_robots:int, vleade
         Returns:
             offsets: (np.ndarray) Nx2 array of robot offsets
     """
-    assert num_robots % 4 == 0  # check that the number of robots is divisible by 4
-    offsets = []  # Use empty list, append as we go
-
-    if desired_shape == 'S':
-        robots_per_side = num_robots // 4
-        
-        # Calculate the side length and half-side for centering
-        side_length = (robots_per_side - 1) * spacing
-        half_side = side_length / 2.0
-        
-        robot_idx = 0
-        
-        # Top side (left to right)
-        y = vleader_pos[1] + half_side
-        for i in range(robots_per_side):
-            x = vleader_pos[0] - half_side + i * spacing
-            offsets.append(np.array([x, y]))
-            robot_idx += 1
-        
-        # Right side (top to bottom)
-        x = vleader_pos[0] + half_side
-        for i in range(robots_per_side):
-            y = vleader_pos[1] + half_side - i * spacing
-            offsets.append(np.array([x, y]))
-            robot_idx += 1
-        
-        # Bottom side (right to left)
-        y = vleader_pos[1] - half_side
-        for i in range(robots_per_side):
-            x = vleader_pos[0] + half_side - i * spacing
-            offsets.append(np.array([x, y]))
-            robot_idx += 1
-        
-        # Left side (bottom to top)
-        x = vleader_pos[0] - half_side
-        for i in range(robots_per_side):
-            y = vleader_pos[1] - half_side + i * spacing
-            offsets.append(np.array([x, y]))
-            robot_idx += 1
-    else:
+    if desired_shape != 'S':
         return None
-    
-    return np.array(offsets)
+
+    assert num_robots % 4 == 0, "num_robots must be divisible by 4"
+
+    # spacing = 0.75  # FIXED spacing (meters)
+
+    per_side = num_robots // 4  # robots per side "segment"
+    cx, cy = float(vleader_pos[0]), float(vleader_pos[1])
+
+    # IMPORTANT:
+    # To get exactly 'spacing' between consecutive robots around the perimeter
+    # with corners NOT duplicated, the corner-to-corner side length must be:
+    side_length = per_side * spacing
+    half = side_length / 2.0
+
+    offsets = []
+
+    # Top segment: includes TL corner, excludes TR corner (TR will be first of right segment)
+    for i in range(per_side):
+        x = cx - half + i * spacing
+        y = cy + half
+        offsets.append([x, y])
+
+    # Right segment: includes TR corner, excludes BR corner
+    for i in range(per_side):
+        x = cx + half
+        y = cy + half - i * spacing
+        offsets.append([x, y])
+
+    # Bottom segment: includes BR corner, excludes BL corner
+    for i in range(per_side):
+        x = cx + half - i * spacing
+        y = cy - half
+        offsets.append([x, y])
+
+    # Left segment: includes BL corner, excludes TL corner
+    for i in range(per_side):
+        x = cx - half
+        y = cy - half + i * spacing
+        offsets.append([x, y])
+
+    offsets = np.array(offsets, dtype=float)
+
+    # We generated exactly N points
+    offsets = offsets[:num_robots]
+    return offsets

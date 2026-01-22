@@ -15,9 +15,9 @@ import time
 
 
 
-class AuctioneerNode(Node):     # Auctioneer node for task, also doubles as Bidder node for robot 1
+class AuctioneerCustomNode(Node):     # Auctioneer node for task, also doubles as Bidder node for robot 1
     def __init__(self):
-        super().__init__('auctioneer_node')
+        super().__init__('auctioneer_custom_node')
 
         # Declaring parameters to ROS
         self.declare_parameter('num_robots', 4)
@@ -36,6 +36,8 @@ class AuctioneerNode(Node):     # Auctioneer node for task, also doubles as Bidd
         self.declare_parameter('T10')
         self.declare_parameter('TF')
         self.declare_parameter('TL')
+        self.declare_parameter('TL2')
+        self.declare_parameter('TL3')
         self.declare_parameter('TH')
         self.declare_parameter('p_1')
         self.declare_parameter('p_2')
@@ -44,6 +46,7 @@ class AuctioneerNode(Node):     # Auctioneer node for task, also doubles as Bidd
         self.declare_parameter('T7_shape')
         self.declare_parameter('T8_shape')
         self.declare_parameter('T9_shape')
+        self.declare_parameter('T10_shape')
         self.declare_parameter('bid_timeout', 5.0)  # timeout for bid collection
 
         # Load parameters
@@ -58,6 +61,8 @@ class AuctioneerNode(Node):     # Auctioneer node for task, also doubles as Bidd
             self.task_info[i+1].append(False)
         self.tf_list = self.get_parameter('TF').value
         self.tl_list = self.get_parameter('TL').value
+        self.tl2_list = self.get_parameter('TL2').value
+        self.tl3_list = self.get_parameter('TL3').value
         self.th_list = self.get_parameter('TH').value
         self.p_1 = self.get_parameter('p_1').value
         self.p_2 = self.get_parameter('p_2').value
@@ -66,6 +71,7 @@ class AuctioneerNode(Node):     # Auctioneer node for task, also doubles as Bidd
         self.T7_shape = self.get_parameter('T7_shape').value
         self.T8_shape = self.get_parameter('T8_shape').value
         self.T9_shape = self.get_parameter('T9_shape').value
+        self.T10_shape = self.get_parameter('T10_shape').value
 
         # ATTRIBUTES
         self.position = np.zeros((1, 2))
@@ -200,6 +206,8 @@ class AuctioneerNode(Node):     # Auctioneer node for task, also doubles as Bidd
             ta_msg.task_formation = self.T8_shape
         elif tid == 9:
             ta_msg.task_formation = self.T9_shape
+        elif tid == 10:
+            ta_msg.task_formation = self.T10_shape
         else:
             ta_msg.task_formation = 'A'
 
@@ -227,6 +235,14 @@ class AuctioneerNode(Node):     # Auctioneer node for task, also doubles as Bidd
             lf = self.publish_task(tid, es, lf)
 
         for tid in self.tl_list:    # tid --> task_id
+            es = 10 + lf
+            lf = self.publish_task(tid, es, lf)
+
+        for tid in self.tl2_list:    # tid --> task_id
+            es = 10 + lf
+            lf = self.publish_task(tid, es, lf)
+
+        for tid in self.tl3_list:    # tid --> task_id
             es = 10 + lf
             lf = self.publish_task(tid, es, lf)
 
@@ -332,7 +348,7 @@ class AuctioneerNode(Node):     # Auctioneer node for task, also doubles as Bidd
 def main(args=None):
     rclpy.init(args=args)
 
-    node = AuctioneerNode()
+    node = AuctioneerCustomNode()
 
     # Spin the node in a background thread
     spin_thread = Thread(target=rclpy.spin, args=(node,), daemon=True)
