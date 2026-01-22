@@ -1,0 +1,5 @@
+/**:
+  ros__parameters:
+    num_robots: 4
+    publish_rate: 10.0   # in Hz, for control loop timer
+    max_acc: 1.0  # in m/s2
