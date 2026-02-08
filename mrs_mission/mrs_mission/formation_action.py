@@ -146,7 +146,7 @@ class FormationAction(Node):    # Formation Action Server (can handle multiple r
             'goal_handle': goal_handle,
 
 
-            'MIN_DIFF': 0.25    # minimum distance to desired position in offset matrix to allow for formation completion
+            'MIN_DIFF': 0.5    # minimum distance to desired position in offset matrix to allow for formation completion
         }
 
         num_robots = goal_state['num_formation_robots']

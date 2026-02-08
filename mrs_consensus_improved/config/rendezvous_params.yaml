@@ -3,7 +3,7 @@ rendezvous_controller:
     k_p: 1.5    # consensus gain - (determines the speed of reaching consensus)
     k_d: 0.8    # damping factor - (to slow down velocity as robots reach consensus)
     k_separation: 3.0   # repulsive force (0.5)
-    safe_dist: 0.5    # minimum safe distance between robots
+    safe_dist: 0.8    # minimum safe distance between robots
 
     topology: 'B'   # A,B,C,D,E,F [The rendezvous topologies are provided below]
     

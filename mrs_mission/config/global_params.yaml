@@ -7,7 +7,7 @@
     # Acceleration control parameters for all robots
     k_p: 1.5    # consensus gain - (determines the speed of reaching consensus)
     k_d: 0.8    # damping factor - (to slow down velocity as robots reach consensus)
-    k_separation: 3.0   # repulsive force
+    k_separation: 3.5   # repulsive force
     safe_dist: 0.8    # minimum safe distance between robots (0.5)
 
     # mission params (for sake of simplicity)

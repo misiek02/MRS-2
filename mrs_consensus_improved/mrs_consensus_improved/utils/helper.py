@@ -234,7 +234,7 @@ def get_formation_offset_matrix(desired_shape:str, num_robots:int, vleader_pos:l
                 offsets[1] = np.array([vleader_pos[0]-spacing, vleader_pos[1]-spacing])
                 offsets[2] = np.array([vleader_pos[0]-spacing, vleader_pos[1]+spacing])
             elif num_robots == 4:
-                offsets[0] = np.array([vleader_pos[0]+spacing, vleader_pos[1]])
+                offsets[0] = np.array([vleader_pos[0]+spacing/2, vleader_pos[1]])
                 offsets[1] = np.array([vleader_pos[0]-spacing, vleader_pos[1]-spacing])
                 offsets[2] = np.array([vleader_pos[0]-spacing, vleader_pos[1]])
                 offsets[3] = np.array([vleader_pos[0]-spacing, vleader_pos[1]+spacing])
@@ -334,10 +334,10 @@ def get_formation_offset_matrix_mission(desired_shape:str, num_robots:int, vlead
             
             case 'C':
                 if num_robots == 4:
-                    offsets[0] = np.array([vleader_pos[0]+spacing, vleader_pos[1]+spacing])
-                    offsets[1] = np.array([vleader_pos[0]-spacing, vleader_pos[1]+spacing])
-                    offsets[2] = np.array([vleader_pos[0]+(spacing*1.75), vleader_pos[1]-spacing])
-                    offsets[3] = np.array([vleader_pos[0]-(spacing*1.75), vleader_pos[1]-spacing])
+                    offsets[0] = np.array([vleader_pos[0]+(spacing/2), vleader_pos[1]+(spacing/2)])
+                    offsets[1] = np.array([vleader_pos[0]-(spacing/2), vleader_pos[1]+(spacing/2)])
+                    offsets[2] = np.array([vleader_pos[0]+(spacing*1.5), vleader_pos[1]-spacing])
+                    offsets[3] = np.array([vleader_pos[0]-(spacing*1.5), vleader_pos[1]-spacing])
                 
                 # Return the offset positions
                 return np.array(offsets)

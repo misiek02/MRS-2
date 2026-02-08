@@ -28,6 +28,14 @@ class FormationController(Node):
         self.declare_parameter('vleader_x', 0.0)
         self.declare_parameter('vleader_y', 0.0)
         self.declare_parameter('desired_shape', 'L')
+        self.declare_parameter('switching', False)
+        # --- NEW: switching topology params ---
+        # connect when d <= comm_radius_in
+        self.declare_parameter('comm_radius_in', 0.8)
+        # disconnect when d > comm_radius_out (>= comm_radius_in) -> avoids chattering
+        self.declare_parameter('comm_radius_out', 0.9)
+        # if True: enforce A symmetric (range comm is usually undirected)
+        self.declare_parameter('undirected_graph', True)
 
         # Load parameters
         self.num_robots = self.get_parameter('num_robots').value
@@ -41,9 +49,17 @@ class FormationController(Node):
         self.target_pos = np.array([self.get_parameter('target_pos_x').value, self.get_parameter('target_pos_y').value])
         self.vleader_pos = [self.get_parameter('vleader_x').value, self.get_parameter('vleader_y').value]
         self.desired_shape = self.get_parameter('desired_shape').value
+        self.switching = self.get_parameter('switching').value
+        # --- NEW ---
+        self.comm_radius_in = float(self.get_parameter('comm_radius_in').value)
+        self.comm_radius_out = float(self.get_parameter('comm_radius_out').value)
+        self.undirected_graph = bool(self.get_parameter('undirected_graph').value)
 
         # ATTRIBUTES
-        self.formation_offsets = get_formation_offset_matrix(self.desired_shape, self.num_robots, vleader_pos=self.vleader_pos, spacing=self.spacing)
+        if self.desired_shape == "S":
+            self.formation_offsets = get_formation_offset_matrix_square(self.desired_shape, self.num_robots, vleader_pos=self.vleader_pos, spacing=self.spacing)
+        else:
+            self.formation_offsets = get_formation_offset_matrix(self.desired_shape, self.num_robots, vleader_pos=self.vleader_pos, spacing=self.spacing)
         if not isinstance(self.formation_offsets, np.ndarray):
             self.get_logger().info("Wrong formation provided (or wrong formation to robot number) compatibility. Please check params file for restrictions.\nSupplying zeros for offsets...")
             self.formation_offsets = np.zeros((self.num_robots, 2))
@@ -99,6 +115,41 @@ class FormationController(Node):
         self.velocities[rid] = [msg.values[0], msg.values[1]]   # # NOTE: We're controlling just x and y velocities. z velocity is controlled (to maintain 1.0m altitude) by vel_mux.py and crazyflie_server.py
         self.velocity_received[rid] = True
 
+    def update_adjacency_from_radius(self):
+        """
+        Build A based on distance threshold with hysteresis:
+          - connect if d <= R_in
+          - disconnect if d > R_out
+        """
+        n = self.num_robots
+        Rin2 = self.comm_radius_in * self.comm_radius_in
+        Rout2 = self.comm_radius_out * self.comm_radius_out
+
+        for i in range(n):
+            for j in range(n):
+                if i == j:
+                    self.A[i, j] = 0
+                    continue
+    
+                dx = self.positions[j, 0] - self.positions[i, 0]
+                dy = self.positions[j, 1] - self.positions[i, 1]
+                d2 = dx * dx + dy * dy
+
+                if self.A[i, j] == 1:
+                    # keep connected until beyond R_out
+                    self.A[i, j] = 1 if d2 <= Rout2 else 0
+                else:
+                    # connect only if within R_in
+                    self.A[i, j] = 1 if d2 <= Rin2 else 0
+
+        # Enforce undirected (symmetric) adjacency if desired
+        if self.undirected_graph:
+            for i in range(n):
+                for j in range(i + 1, n):
+                    v = 1 if (self.A[i, j] == 1 or self.A[j, i] == 1) else 0
+                    self.A[i, j] = v
+                    self.A[j, i] = v
+
     # Main control loop
     def control_loop(self):
         # Safety check: Wait until position and velocity updates have been received from all robots
@@ -107,7 +158,10 @@ class FormationController(Node):
             self.get_logger().info("Not all robot positions and velocities have been received. Awaiting before start...")
             return
 
-        LOCAL_FORMATION_THRESHOLD = 1e-1
+        self.update_adjacency_from_radius()
+        LOCAL_FORMATION_THRESHOLD = 4e-1    
+
+        self.get_logger().info(f"Adjency matrix: \n {self.A}")
 
         # Process each robot independently
         for i in range(self.num_robots):
@@ -131,6 +185,7 @@ class FormationController(Node):
             # Virtual Leader Logic: Move formation center to target 
             # We treat the formation as a "stubborn robot" following the target_pos
             if i == 0 and local_ready:
+                self.get_logger().info("Moving to Target!")
                 desired_i = self.target_pos + self.formation_offsets[i]
                 a_x += desired_i[0] - self.positions[i][0]
                 a_y += desired_i[1] - self.positions[i][1]
